@@ -5,6 +5,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTodos } from '../../todo/store/TodoContext';
 import { selectProgress } from '../../todo/store/todoReducer';
+import LockedOverlay from '../../../shared/ui/LockedOverlay';
 
 const TABS = [
   { value: 'active', label: '진행중' },
