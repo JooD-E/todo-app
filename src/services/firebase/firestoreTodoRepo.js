@@ -22,7 +22,7 @@ export function createFirestoreTodoRepo(uid) {
      * 실시간 구독. 초기 로드 + 이후 변경도 자동으로 반영.
      * @returns unsubscribe 함수
      */
-    subscribe(callback) {
+    subscribe(callback, errorCallback) {
       const q = query(collRef, orderBy('createdAt'));
       return onSnapshot(
         q,
@@ -32,6 +32,7 @@ export function createFirestoreTodoRepo(uid) {
         },
         (err) => {
           console.error('[firestore subscribe]', err);
+          if (errorCallback) errorCallback(err);
         }
       );
     },

@@ -20,7 +20,7 @@ function useTodayString() {
 }
 
 function TodoListView({ onOpenAddSheet, onOpenEditSheet, onOpenDetail }) {
-  const { todos, category, setCategory, toggleTodo, editTodo, deleteTodo } = useTodos();
+  const { todos, category, setCategory, toggleTodo, editTodo, deleteTodo, isLoadingTodos } = useTodos();
   const today = useTodayString();
   const categoryMeta = CATEGORY_OPTIONS.find((c) => c.value === category);
 
@@ -61,13 +61,21 @@ function TodoListView({ onOpenAddSheet, onOpenEditSheet, onOpenDetail }) {
         </div>
       )}
 
-      <TodoList
-        todos={visibleTodos}
-        onToggle={toggleTodo}
-        onEdit={onOpenEditSheet}
-        onDelete={deleteTodo}
-        onOpenDetail={onOpenDetail}
-      />
+      {isLoadingTodos ? (
+        <div className="app-content">
+          <div style={{ textAlign: 'center', color: '#aaa', marginTop: 80 }}>
+            <p style={{ fontSize: 13 }}>불러오는 중...</p>
+          </div>
+        </div>
+      ) : (
+        <TodoList
+          todos={visibleTodos}
+          onToggle={toggleTodo}
+          onEdit={onOpenEditSheet}
+          onDelete={deleteTodo}
+          onOpenDetail={onOpenDetail}
+        />
+      )}
 
       <button className="fab-btn" onClick={onOpenAddSheet} aria-label="할 일 추가">
         +

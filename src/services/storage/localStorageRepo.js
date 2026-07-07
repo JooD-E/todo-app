@@ -25,10 +25,9 @@ function save(todos) {
 
 export function createLocalTodoRepo() {
   return {
-    subscribe(callback) {
-      // 초기 1회만 콜백
+    subscribe(callback, _errorCallback) {
       callback(load());
-      return () => {}; // no-op unsubscribe
+      return () => {};
     },
 
     async add(todo) {

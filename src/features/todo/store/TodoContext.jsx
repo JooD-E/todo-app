@@ -1,6 +1,7 @@
 // features/todo/store/TodoContext.jsx
 // user 유무에 따라 저장소를 스위치. 액션 함수에서 낙관적 dispatch + 저장소 반영.
 // 반복 회차 생성 로직은 여기(action creator)에서 처리.
+// isLoadingTodos: 저장소 최초 구독 응답 전까지 true (새로고침 시 빈 화면 깜빡임 방지용)
 
 import React, {
   createContext,
@@ -27,30 +28,42 @@ function todayString() {
 
 export function TodoProvider({ children }) {
   const { user } = useAuth();
+
+  // ── 1. state 선언 ──
   const [state, dispatch] = useReducer(todoReducer, initialState);
   const [today, setToday] = useState(todayString);
+  const [isLoadingTodos, setIsLoadingTodos] = useState(true);
 
-  // 액션 함수에서 최신 todos를 참조하기 위한 ref
+  // ── 2. ref 선언 ──
   const todosRef = useRef(state.todos);
   useEffect(() => {
     todosRef.current = state.todos;
   }, [state.todos]);
 
-  // 저장소 스위치: 로그인 유저 → Firestore, 게스트 → localStorage
+  // ── 3. repo 생성 (다른 곳에서 참조하기 전에 반드시 먼저 선언) ──
   const repo = useMemo(
     () => (user ? createFirestoreTodoRepo(user.uid) : createLocalTodoRepo()),
     [user]
   );
 
-  // 저장소 구독 (Firestore는 실시간, localStorage는 초기 1회)
+  // ── 4. repo 구독 ──
   useEffect(() => {
-    const unsub = repo.subscribe((todos) => {
-      dispatch({ type: ACTIONS.INIT, payload: todos });
-    });
+    setIsLoadingTodos(true);
+    const unsub = repo.subscribe(
+      (todos) => {
+        dispatch({ type: ACTIONS.INIT, payload: todos });
+        setIsLoadingTodos(false);
+      },
+      (err) => {
+        // Firestore 권한/네트워크 에러 시 로딩 스피너 무한 방지
+        console.error('[TodoContext subscribe error]', err);
+        setIsLoadingTodos(false);
+      }
+    );
     return unsub;
   }, [repo]);
 
-  // 자정 감지: 매 분 today 갱신
+  // ── 5. 자정 감지: 매 분 today 갱신 ──
   useEffect(() => {
     const t = setInterval(() => {
       const now = todayString();
@@ -59,7 +72,7 @@ export function TodoProvider({ children }) {
     return () => clearInterval(t);
   }, []);
 
-  // 이월 처리: today가 바뀌거나 초기 로드 후 실행
+  // ── 6. 이월 처리 ──
   useEffect(() => {
     const now = new Date().toISOString();
     const overdue = state.todos.filter(
@@ -69,13 +82,12 @@ export function TodoProvider({ children }) {
 
     dispatch({ type: ACTIONS.ROLLOVER, today });
 
-    // 저장소에도 반영 (병렬)
     overdue.forEach((t) => {
       repo.update(t.id, { date: today, updatedAt: now }).catch(console.error);
     });
   }, [today, state.todos, repo]);
 
-  // ── 액션 함수들 ──
+  // ── 액션 함수들 (모두 repo 선언 이후에 위치) ──
 
   const addTodo = useCallback(
     async (draft) => {
@@ -85,7 +97,6 @@ export function TodoProvider({ children }) {
         await repo.add(todo);
       } catch (err) {
         console.error('[addTodo]', err);
-        // 롤백
         dispatch({ type: ACTIONS.DELETE, id: todo.id });
       }
     },
@@ -121,7 +132,6 @@ export function TodoProvider({ children }) {
         console.error('[toggleTodo]', err);
       }
 
-      // 반복 완료 시 다음 회차 생성
       if (willComplete && target.repeat) {
         const nextDate = nextRepeatDate(target.date, target.repeat);
         if (nextDate) {
@@ -177,6 +187,7 @@ export function TodoProvider({ children }) {
       category: state.category,
       sort: state.sort,
       today,
+      isLoadingTodos,
       addTodo,
       editTodo,
       toggleTodo,
@@ -185,7 +196,18 @@ export function TodoProvider({ children }) {
       setCategory,
       setSort,
     }),
-    [state, today, addTodo, editTodo, toggleTodo, deleteTodo, setFilter, setCategory, setSort]
+    [
+      state,
+      today,
+      isLoadingTodos,
+      addTodo,
+      editTodo,
+      toggleTodo,
+      deleteTodo,
+      setFilter,
+      setCategory,
+      setSort,
+    ]
   );
 
   return <TodoContext.Provider value={value}>{children}</TodoContext.Provider>;
