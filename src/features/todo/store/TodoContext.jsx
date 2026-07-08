@@ -1,7 +1,7 @@
 // features/todo/store/TodoContext.jsx
 // user 유무에 따라 저장소를 스위치. 액션 함수에서 낙관적 dispatch + 저장소 반영.
 // 반복 회차 생성 로직은 여기(action creator)에서 처리.
-// isLoadingTodos: 저장소 최초 구독 응답 전까지 true (새로고침 시 빈 화면 깜빡임 방지용)
+// 각 액션 성공 시 activityLog에도 기록 (게스트는 no-op).
 
 import React, {
   createContext,
@@ -17,6 +17,7 @@ import { todoReducer, initialState, ACTIONS, selectVisibleTodos } from './todoRe
 import { createLocalTodoRepo } from '../../../services/storage/localStorageRepo';
 import { createFirestoreTodoRepo } from '../../../services/firebase/firestoreTodoRepo';
 import { useAuth } from '../../../shared/auth/AuthContext';
+import { useActivityLog } from '../../activity/store/ActivityLogContext';
 import { createTodo, createSubtask } from '../todoModel';
 import { nextRepeatDate } from '../constants';
 
@@ -28,25 +29,22 @@ function todayString() {
 
 export function TodoProvider({ children }) {
   const { user } = useAuth();
+  const { addLog } = useActivityLog();
 
-  // ── 1. state 선언 ──
   const [state, dispatch] = useReducer(todoReducer, initialState);
   const [today, setToday] = useState(todayString);
   const [isLoadingTodos, setIsLoadingTodos] = useState(true);
 
-  // ── 2. ref 선언 ──
   const todosRef = useRef(state.todos);
   useEffect(() => {
     todosRef.current = state.todos;
   }, [state.todos]);
 
-  // ── 3. repo 생성 (다른 곳에서 참조하기 전에 반드시 먼저 선언) ──
   const repo = useMemo(
     () => (user ? createFirestoreTodoRepo(user.uid) : createLocalTodoRepo()),
     [user]
   );
 
-  // ── 4. repo 구독 ──
   useEffect(() => {
     setIsLoadingTodos(true);
     const unsub = repo.subscribe(
@@ -55,7 +53,6 @@ export function TodoProvider({ children }) {
         setIsLoadingTodos(false);
       },
       (err) => {
-        // Firestore 권한/네트워크 에러 시 로딩 스피너 무한 방지
         console.error('[TodoContext subscribe error]', err);
         setIsLoadingTodos(false);
       }
@@ -63,7 +60,6 @@ export function TodoProvider({ children }) {
     return unsub;
   }, [repo]);
 
-  // ── 5. 자정 감지: 매 분 today 갱신 ──
   useEffect(() => {
     const t = setInterval(() => {
       const now = todayString();
@@ -72,7 +68,6 @@ export function TodoProvider({ children }) {
     return () => clearInterval(t);
   }, []);
 
-  // ── 6. 이월 처리 ──
   useEffect(() => {
     const now = new Date().toISOString();
     const overdue = state.todos.filter(
@@ -87,7 +82,7 @@ export function TodoProvider({ children }) {
     });
   }, [today, state.todos, repo]);
 
-  // ── 액션 함수들 (모두 repo 선언 이후에 위치) ──
+  // ── 액션 함수들 ──
 
   const addTodo = useCallback(
     async (draft) => {
@@ -95,25 +90,30 @@ export function TodoProvider({ children }) {
       dispatch({ type: ACTIONS.ADD, payload: todo });
       try {
         await repo.add(todo);
+        addLog({ type: 'ADD', todoId: todo.id, todoText: todo.text });
       } catch (err) {
         console.error('[addTodo]', err);
         dispatch({ type: ACTIONS.DELETE, id: todo.id });
       }
     },
-    [repo]
+    [repo, addLog]
   );
 
   const editTodo = useCallback(
     async (id, patch) => {
+      const target = todosRef.current.find((t) => t.id === id);
+      const displayText = patch.text ?? target?.text ?? '';
+
       const finalPatch = { ...patch, updatedAt: new Date().toISOString() };
       dispatch({ type: ACTIONS.EDIT, id, patch: finalPatch });
       try {
         await repo.update(id, finalPatch);
+        addLog({ type: 'EDIT', todoId: id, todoText: displayText });
       } catch (err) {
         console.error('[editTodo]', err);
       }
     },
-    [repo]
+    [repo, addLog]
   );
 
   const toggleTodo = useCallback(
@@ -128,6 +128,11 @@ export function TodoProvider({ children }) {
       dispatch({ type: ACTIONS.EDIT, id, patch });
       try {
         await repo.update(id, patch);
+        addLog({
+          type: willComplete ? 'COMPLETE' : 'UNCOMPLETE',
+          todoId: id,
+          todoText: target.text,
+        });
       } catch (err) {
         console.error('[toggleTodo]', err);
       }
@@ -148,25 +153,34 @@ export function TodoProvider({ children }) {
           dispatch({ type: ACTIONS.ADD, payload: nextTodo });
           try {
             await repo.add(nextTodo);
+            addLog({
+              type: 'REPEAT_CREATED',
+              todoId: nextTodo.id,
+              todoText: nextTodo.text,
+            });
           } catch (err) {
             console.error('[toggleTodo:repeat]', err);
           }
         }
       }
     },
-    [repo]
+    [repo, addLog]
   );
 
   const deleteTodo = useCallback(
     async (id) => {
+      const target = todosRef.current.find((t) => t.id === id);
+      const displayText = target?.text ?? '';
+
       dispatch({ type: ACTIONS.DELETE, id });
       try {
         await repo.remove(id);
+        addLog({ type: 'DELETE', todoId: id, todoText: displayText });
       } catch (err) {
         console.error('[deleteTodo]', err);
       }
     },
-    [repo]
+    [repo, addLog]
   );
 
   const setFilter = useCallback(

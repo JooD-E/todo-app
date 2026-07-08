@@ -14,6 +14,7 @@ import TodoDetailView from '../features/todo/components/TodoDetailView';
 import SearchView from '../features/search/components/SearchView';
 import CalendarView from '../features/calendar/components/CalendarView';
 import StatsView from '../features/stats/components/StatsView';
+import ActivityLogView from '../features/activity/components/ActivityLogView';
 import NotificationPanel from '../features/notification/components/NotificationPanel';
 import { useTodos } from '../features/todo/store/TodoContext';
 
@@ -22,6 +23,7 @@ const VIEWS = {
   CALENDAR: 'calendar',
   SEARCH: 'search',
   STATS: 'stats',
+  ACTIVITY: 'activity',
 };
 
 function AppShell() {
@@ -58,6 +60,12 @@ function AppShell() {
     setIsMenuOpen(false);
   };
 
+  const goToActivity = () => {
+    closeDetail();
+    setView(VIEWS.ACTIVITY);
+    setIsMenuOpen(false);
+  };
+
   // 상세 뷰 전체 화면
   if (detailTodo) {
     return (
@@ -81,6 +89,7 @@ function AppShell() {
       {view === VIEWS.CALENDAR && <CalendarView />}
       {view === VIEWS.SEARCH && <SearchView />}
       {view === VIEWS.STATS && <StatsView />}
+      {view === VIEWS.ACTIVITY && <ActivityLogView />}
 
       <Navigation
         activeView={view}
@@ -95,6 +104,7 @@ function AppShell() {
         onClose={() => setIsMenuOpen(false)}
         onSelectCategory={goHome}
         onOpenStats={goToStats}
+        onOpenActivity={goToActivity}
       />
       <BottomSheet
         isOpen={sheet.open}

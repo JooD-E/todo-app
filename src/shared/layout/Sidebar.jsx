@@ -9,7 +9,7 @@ import { CATEGORY_OPTIONS } from '../../features/todo/constants';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../auth/AuthContext';
 
-function Sidebar({ isOpen, onClose, onSelectCategory, onOpenStats }) {
+function Sidebar({ isOpen, onClose, onSelectCategory, onOpenStats, onOpenActivity }) {
   const { category, setCategory } = useTodos();
   const { theme, toggleTheme } = useTheme();
   const { user, isGuest, signOut, exitGuest } = useAuth();
@@ -75,7 +75,9 @@ function Sidebar({ isOpen, onClose, onSelectCategory, onOpenStats }) {
         </div>
 
         <div className="sidebar-section">
-          <button className="sidebar-item muted">🕘 활동 내역{!user && ' 🔒'}</button>
+          <button className="sidebar-item" onClick={onOpenActivity}>
+            🕘 활동 내역{!user && ' 🔒'}
+          </button>
           <button className="sidebar-item" onClick={onOpenStats}>
             📊 내 성취 통계 리포트{!user && ' 🔒'}
           </button>

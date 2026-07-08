@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { TodoProvider } from '../features/todo/store/TodoContext';
 import { NotificationProvider } from '../features/notification/store/NotificationContext';
+import { ActivityLogProvider } from '../features/activity/store/ActivityLogContext';
 import { ThemeProvider } from '../shared/theme/ThemeContext';
 import { AuthProvider, useAuth } from '../shared/auth/AuthContext';
 import IntroPage from '../pages/IntroPage';
@@ -44,11 +45,13 @@ function AppRouter() {
 
   // 로그인됨 또는 게스트 → 앱 본체
   return (
-    <TodoProvider>
-      <NotificationProvider>
-        <AppShell />
-      </NotificationProvider>
-    </TodoProvider>
+    <ActivityLogProvider>
+      <TodoProvider>
+        <NotificationProvider>
+          <AppShell />
+        </NotificationProvider>
+      </TodoProvider>
+    </ActivityLogProvider>
   );
 }
 
